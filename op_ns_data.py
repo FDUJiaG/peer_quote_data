@@ -38,7 +38,7 @@ def op_ns_data(file_name):
 
     raw_df_key = raw_df.keys().tolist()
     for item in raw_df_key:
-        if "申购价格" in item:
+        if "价格" in item:
             sg_jg = item
         elif "投资者" in item:
             tzz_mc = item
@@ -115,7 +115,8 @@ def get_col_list(r_path, data_n, sheet_n, f_type=".xlsx"):
         file for file in file_list if data_n in file and f_type.split(".")[-1] in file.split(".")[-1]
     ]
 
-    print(data_list)
+    print(print_info(), end=" ")
+    print("Data List: {}".format(data_list))
 
     if len(data_list) > 0:
         data_path = data_list[-1]
@@ -280,6 +281,8 @@ def output_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp):
                 for tzz_item in tzz_list:
                     if "迎水" in tzz_item:
                         output_item[col_temp[2]] = df_group.loc[tzz_item][0]
+                        # output_item[col_temp[3]] = df_group.loc[tzz_item][1]
+                        output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
             else:
                 output_item[col_temp[2]] = ""
             df_output = df_output.append(output_item, ignore_index=True)

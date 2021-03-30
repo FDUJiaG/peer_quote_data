@@ -32,15 +32,21 @@ def op_all_tzz(file_name):
     if type(raw_df) is bool:
         return raw_df
 
+    # 替换
+    raw_df.replace("招商基金管理有限公司", "招商基金", inplace=True)
+
     if not judge_df(raw_df):
         return False
 
     raw_df_key = raw_df.keys().tolist()
     for item in raw_df_key:
-        if "申购价格" in item:
+        if "价格" in item:
             sg_jg = item
         elif "投资者" in item:
             tzz_mc = item
+
+    for idx, item in zip(range(len(raw_df[tzz_mc])), raw_df[tzz_mc]):
+        raw_df[tzz_mc][idx] = item.replace("(", "（").replace(")", "）")
 
     raw_df_col = raw_df[tzz_mc].tolist()
     union_col = get_all_col(col_list, raw_df_col)
@@ -125,13 +131,17 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
     # 删除全称列
     df_output.drop(columns=col_temp[1], inplace=True)
     df_note = pd.DataFrame(df_output.values.T, index=df_output.columns, columns=df_output.index)
-    # 删除我司列
+    # 查看我司的备注
+    df_note["我司报价"]["备注"] = df_note["上海迎水投资管理有限公司"]["备注"]
+    print(print_info(), end=" ")
+    print("我司备注：{}".format(df_note["我司报价"]["备注"]))
+    # 删除我司全称列
     df_note.drop(labels="上海迎水投资管理有限公司", inplace=True, axis=1)
     return df_note
 
 
 if __name__ == '__main__':
-    f_name = "晓鸣股份"
+    f_name = "新风光"
     tf_gz = op_ns_data(f_name)
     tf_all = op_all_tzz(f_name)
     if tf_gz and tf_all:

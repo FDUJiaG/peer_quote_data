@@ -132,4 +132,5 @@ dmypy.json
 *.xls
 *.xlsx
 *.html
-bak/
+.idea/
+bak/    for item in raw_df:
