@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd
 from common_utils import col_temp, state_dict
 from op_ns_data import print_info, find_file_path, get_col_list, get_ns_info_data, judge_df, get_df_group
-from op_ns_data import get_note, save_df
+from op_ns_data import get_note, save_df, get_name_and_code
 from op_ns_data import op_ns_data
+from WindPy import w
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -16,7 +17,6 @@ warnings.filterwarnings("ignore")
 def op_all_tzz(file_name):
     root_path = os.path.abspath(".")
     data_dir = os.path.join(root_path, "raw_data")
-    # file_name = input("请输入新股中文名称：") or "恒玄科技"
     file_type = ".xlsx"
     data_name = "同行报价"
     sheet_name = "全部"
@@ -27,6 +27,18 @@ def op_all_tzz(file_name):
     file_path = find_file_path(data_dir, file_name, file_type)
     if not file_path:
         return False
+
+    long_name = os.path.split(file_path)[-1].split(".")[0]
+    ipo_name, ipo_code = get_name_and_code(long_name)
+    if ipo_code != "":
+        data = w.wsd(
+            ipo_code, "sec_name,ipo_inq_enddate",
+            "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+        )
+        if ipo_name != data.Data[0][0]:
+            print(print_info("E"), end=" ")
+            print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
+            return False
 
     raw_df = get_ns_info_data(file_path)
     if type(raw_df) is bool:
@@ -57,7 +69,7 @@ def op_all_tzz(file_name):
 
     tzz_list = df_group.index.tolist()
     print(union_col)
-    df_note = output_all_df(file_path, tzz_mc, raw_df, df_group, tzz_list, union_col, col_temp)
+    df_note = output_all_df(file_path, tzz_mc, raw_df, df_group, tzz_list, union_col, col_temp, ipo_name, ipo_code)
 
     try:
         save_df(df_note, root_path, file_path, sheet_name, op_file_type=".xlsx")
@@ -74,7 +86,7 @@ def get_all_col(col_list, raw_df_col):
     return all_list
 
 
-def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp):
+def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
     df_output = pd.DataFrame(columns=col_temp)
     desc_list = list()
 
@@ -105,11 +117,21 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
 
         if p == 0:
             if item == "证券名称":
-                zq_name = os.path.split(f_path)[-1].split(".")[0]
-                if len(zq_name) <= 4:
-                    output_item[col_temp[2]] = zq_name
-                else:
-                    output_item[col_temp[2]] = zq_name[:4]
+                # zq_name = os.path.split(f_path)[-1].split(".")[0]
+                # if len(zq_name) <= 4:
+                #     output_item[col_temp[2]] = zq_name
+                # else:
+                #     output_item[col_temp[2]] = zq_name[:4]
+                output_item[col_temp[2]] = ipo_n
+            elif item == "证券代码":
+                output_item[col_temp[2]] = ipo_c
+            elif item == "询价日期":
+                if ipo_c != "":
+                    data = w.wsd(
+                        ipo_c, "sec_name,ipo_inq_enddate",
+                        "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+                    )
+                    output_item[col_temp[2]] = data.Data[-1][0].strftime("%Y-%m-%d")
             elif item == "我司报价":
                 output_item[col_temp[1]] = "上海迎水投资管理有限公司"
                 for tzz_item in tzz_list:
@@ -132,16 +154,21 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
     df_output.drop(columns=col_temp[1], inplace=True)
     df_note = pd.DataFrame(df_output.values.T, index=df_output.columns, columns=df_output.index)
     # 查看我司的备注
-    df_note["我司报价"]["备注"] = df_note["上海迎水投资管理有限公司"]["备注"]
-    print(print_info(), end=" ")
-    print("我司备注：{}".format(df_note["我司报价"]["备注"]))
-    # 删除我司全称列
-    df_note.drop(labels="上海迎水投资管理有限公司", inplace=True, axis=1)
+    if "上海迎水投资管理有限公司" in df_note.columns:
+        df_note["我司报价"]["备注"] = df_note["上海迎水投资管理有限公司"]["备注"]
+        print(print_info(), end=" ")
+        print("我司备注：{}".format(df_note["我司报价"]["备注"]))
+        # 删除我司全称列
+        df_note.drop(labels="上海迎水投资管理有限公司", inplace=True, axis=1)
+    else:
+        df_note["我司报价"]["备注"] = ""
     return df_note
 
 
 if __name__ == '__main__':
-    f_name = "新风光"
+    f_name = "晶雪节能"
+    w.start()
+    w.isconnected()
     tf_gz = op_ns_data(f_name)
     tf_all = op_all_tzz(f_name)
     if tf_gz and tf_all:
@@ -150,3 +177,4 @@ if __name__ == '__main__':
     else:
         print(print_info("E"))
         print("Error!")
+    w.close()

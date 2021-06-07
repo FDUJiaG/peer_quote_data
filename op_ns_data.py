@@ -7,6 +7,7 @@ import pandas as pd
 from common_utils import col_temp, state_dict
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from WindPy import w
 from pyecharts.charts import Bar
 from pyecharts import options as opts
 import warnings
@@ -17,7 +18,6 @@ warnings.filterwarnings("ignore")
 def op_ns_data(file_name):
     root_path = os.path.abspath(".")
     data_dir = os.path.join(root_path, "raw_data")
-    # file_name = input("请输入新股中文名称：") or "恒玄科技"
     file_type = ".xlsx"
     data_name = "同行报价"
     sheet_name = "关注"
@@ -28,6 +28,18 @@ def op_ns_data(file_name):
     file_path = find_file_path(data_dir, file_name, file_type)
     if not file_path:
         return False
+
+    long_name = os.path.split(file_path)[-1].split(".")[0]
+    ipo_name, ipo_code = get_name_and_code(long_name)
+    if ipo_code != "":
+        data = w.wsd(
+            ipo_code, "sec_name,ipo_inq_enddate",
+            "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+        )
+        if ipo_name != data.Data[0][0]:
+            print(print_info("E"), end=" ")
+            print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
+            return False
 
     raw_df = get_ns_info_data(file_path)
     if type(raw_df) is bool:
@@ -48,7 +60,7 @@ def op_ns_data(file_name):
         return df_group
 
     tzz_list = df_group.index.tolist()
-    df_note = output_df(file_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp)
+    df_note = output_df(file_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_name, ipo_code)
 
     try:
         save_df(df_note, root_path, file_path, sheet_name, op_file_type=".xlsx")
@@ -71,6 +83,39 @@ def get_time(date=False, utc=False, msl=3):
 
 def print_info(status="I"):
     return "\033[0;33;1m[{} {}]\033[0m".format(status, get_time())
+
+
+def six_code_to_ts_code(code):
+    # 将股票代码转换成标准格式
+    code = str(code)
+    code = code.split(".")[0]
+
+    if len(code) == 6 and code.isdigit():
+        if code[0] == "6":
+            exc_label = "SH"
+        elif code[0] in ["0", "3"]:
+            exc_label = "SZ"
+        else:
+            print(print_info("W"), end=" ")
+            print("Can not get the Exchange Info from the code: {}".format(code))
+            return False
+        return ".".join([code, exc_label])
+    else:
+        print(print_info("E"), end=" ")
+        print("The stock code: {} is Error! Please check again!".format(code))
+        return False
+
+
+def get_name_and_code(long_n):
+    # 拆分文件名成股票名称和代码
+    ipo_c = ""
+    if "_" in long_n:
+        ipo_n = long_n.split("_")[0]
+        ipo_c = long_n.split("_")[-1].split("(")[0]
+        ipo_c = six_code_to_ts_code(ipo_c)
+    else:
+        ipo_n = long_n.split("(")[0]
+    return ipo_n, ipo_c
 
 
 def find_file_path(data_path, file_n, f_type=".xlsx"):
@@ -164,9 +209,9 @@ def judge_df(df):
 
 def get_df_group(df, index_n, price):
     print(index_n, price)
-    print(df.groupby(index_n)[price, "备注"])
-    df_group = df.groupby(index_n)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
-    df_group.set_index(index_n, inplace=True)
+    # print(df.groupby(index_n)[price, "备注"])
+    # df_group = df.groupby(index_n)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
+    # df_group.set_index(index_n, inplace=True)
     try:
         index_name = index_n
         df_group = df.groupby(index_name)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
@@ -241,7 +286,7 @@ def get_note(df, tzz_mc, short_title, tzz_n, s_dict):
     return note, desc_note
 
 
-def output_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp):
+def output_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
     df_output = pd.DataFrame(columns=col_temp)
     desc_list = list()
 
@@ -272,10 +317,20 @@ def output_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp):
 
         if p == 0:
             if item == "证券名称":
-                qs_name = os.path.split(f_path)[-1].split(".")[0]
-                if len(qs_name) > 4:
-                    qs_name = qs_name[:4]
-                output_item[col_temp[2]] = qs_name
+                # qs_name = os.path.split(f_path)[-1].split(".")[0]
+                # if len(qs_name) > 4:
+                #     qs_name = qs_name[:4]
+                # output_item[col_temp[2]] = qs_name
+                output_item[col_temp[2]] = ipo_n
+            elif item == "证券代码":
+                output_item[col_temp[2]] = ipo_c
+            elif item == "询价日期":
+                if ipo_c != "":
+                    data = w.wsd(
+                        ipo_c, "sec_name,ipo_inq_enddate",
+                        "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+                    )
+                    output_item[col_temp[2]] = data.Data[-1][0].strftime("%Y-%m-%d")
             elif item == "我司报价":
                 output_item[col_temp[1]] = "上海迎水投资管理有限公司"
                 for tzz_item in tzz_list:
@@ -377,10 +432,13 @@ def set_font(df, excel_name, sheet_name):
 
 
 if __name__ == '__main__':
-    TF = op_ns_data()
+    w.start()
+    w.isconnected()
+    TF = op_ns_data("晶雪节能.xlsx")
     if TF:
         print(print_info("S"), end=" ")
         print("Success!")
     else:
         print(print_info("E"))
         print("Error!")
+    w.close()
