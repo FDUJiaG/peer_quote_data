@@ -134,4 +134,5 @@ dmypy.json
 *.html
 *.pdf
 .idea/
-bak/    for item in raw_df:
+bak/
+*.ipynb

@@ -8,8 +8,6 @@ from common_utils import col_temp, state_dict
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from WindPy import w
-from pyecharts.charts import Bar
-from pyecharts import options as opts
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -37,7 +35,7 @@ def op_ns_data(file_name):
             "ED-1TD", datetime.now().strftime("%Y-%m-%d")
         )
         if ipo_name != data.Data[0][0]:
-            print(print_info("E"), end=" ")
+            print(print_new_info("E", "R"), end=" ")
             print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
             return False
 
@@ -60,7 +58,7 @@ def op_ns_data(file_name):
         return df_group
 
     tzz_list = df_group.index.tolist()
-    df_note = output_df(file_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_name, ipo_code)
+    df_note = output_df(tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_name, ipo_code)
 
     try:
         save_df(df_note, root_path, file_path, sheet_name, op_file_type=".xlsx")
@@ -85,6 +83,13 @@ def print_info(status="I"):
     return "\033[0;33;1m[{} {}]\033[0m".format(status, get_time())
 
 
+def print_new_info(status="I", color="Y"):
+    if color == "R":
+        return "\033[0;31;1m[{} {}]\033[0m".format(status, get_time())
+    else:
+        return "\033[0;33;1m[{} {}]\033[0m".format(status, get_time())
+
+
 def six_code_to_ts_code(code):
     # 将股票代码转换成标准格式
     code = str(code)
@@ -101,7 +106,7 @@ def six_code_to_ts_code(code):
             return False
         return ".".join([code, exc_label])
     else:
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("The stock code: {} is Error! Please check again!".format(code))
         return False
 
@@ -120,7 +125,7 @@ def get_name_and_code(long_n):
 
 def find_file_path(data_path, file_n, f_type=".xlsx"):
     if not os.path.exists(data_path):
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("The data directory: {} is not existed, please check again!".format(data_path))
         return False
     else:
@@ -139,11 +144,11 @@ def find_file_path(data_path, file_n, f_type=".xlsx"):
                 file_path.append(item)
 
         if len(file_path) == 0:
-            print(print_info("E"), end=" ")
+            print(print_new_info("E", "R"), end=" ")
             print("No {} file in the data path: {}".format(file_n, data_path))
             return False
         elif len(file_path) > 2:
-            print(print_info("E"), end=" ")
+            print(print_new_info("E", "R"), end=" ")
             print("Not only one file include {} in the data path: {}".format(file_n, data_path))
             return False
         else:
@@ -171,7 +176,7 @@ def get_col_list(r_path, data_n, sheet_n, f_type=".xlsx"):
             print("Columns get!")
             print(col_list)
         except:
-            print(print_info("E"), end=" ")
+            print(print_new_info("E", "R"), end=" ")
             print("Can not get the columns!")
             return False
     else:
@@ -189,7 +194,7 @@ def get_ns_info_data(f_path, sheet_n="Sheet1"):
         print("Successfully loading the file: {}".format(f_path))
         return df
     except:
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("Could not load the file: {}".format(f_path))
         return False
 
@@ -220,7 +225,7 @@ def get_df_group(df, index_n, price):
         print("The Group by DataFrame:\n {}".format(df_group))
         return df_group
     except:
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("There is something wrong in DataFrame:\n {}".format(df.head()))
         return False
 
@@ -286,7 +291,7 @@ def get_note(df, tzz_mc, short_title, tzz_n, s_dict):
     return note, desc_note
 
 
-def output_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
+def output_df(tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
     df_output = pd.DataFrame(columns=col_temp)
     desc_list = list()
 
@@ -392,7 +397,7 @@ def save_df(df, r_path, f_path, sheet_n, op_file_type=".xlsx"):
         print(print_info(), end=" ")
         print("Save to the path: {}".format(save_path))
     except:
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("Can not save to the path: {}".format(save_path))
 
     font_judge = set_font(df, save_path, sheet_n)
@@ -416,7 +421,7 @@ def set_font(df, excel_name, sheet_name):
             elif label == state_dict["高"]:
                 cell.font = Font(color="DC143C")
                 cell.fill = PatternFill(fill_type='solid', fgColor="FFC0CB")
-            # 自2021年3月23日期，无需标注无效报价
+            # 自2021年3月23日起，无需标注无效报价
             # elif label == state_dict["无"]:
             #     cell.font = Font(color="696969")
             #     cell.fill = PatternFill(fill_type='solid', fgColor="C0C0C0")
@@ -425,7 +430,7 @@ def set_font(df, excel_name, sheet_name):
         print(print_info(), end=" ")
         print("Font set!")
     except:
-        print(print_info("E"), end=" ")
+        print(print_new_info("E", "R"), end=" ")
         print("Can not set the font")
         return False
     return True
@@ -439,6 +444,6 @@ if __name__ == '__main__':
         print(print_info("S"), end=" ")
         print("Success!")
     else:
-        print(print_info("E"))
+        print(print_new_info("E", "R"), end=" ")
         print("Error!")
     w.close()

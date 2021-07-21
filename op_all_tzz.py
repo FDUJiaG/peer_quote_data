@@ -5,8 +5,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from common_utils import col_temp, state_dict
-from op_ns_data import print_info, find_file_path, get_col_list, get_ns_info_data, judge_df, get_df_group
-from op_ns_data import get_note, save_df, get_name_and_code
+from op_ns_data import print_info, print_new_info, find_file_path, get_col_list, get_ns_info_data, judge_df
+from op_ns_data import get_df_group, get_note, save_df, get_name_and_code
 from op_ns_data import op_ns_data
 from WindPy import w
 import warnings
@@ -36,7 +36,7 @@ def op_all_tzz(file_name):
             "ED-1TD", datetime.now().strftime("%Y-%m-%d")
         )
         if ipo_name != data.Data[0][0]:
-            print(print_info("E"), end=" ")
+            print(print_new_info("E", "R"), end=" ")
             print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
             return False
 
@@ -166,7 +166,7 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
 
 
 if __name__ == '__main__':
-    f_name = "晶雪节能"
+    f_name = "中环海陆"
     w.start()
     w.isconnected()
     tf_gz = op_ns_data(f_name)
