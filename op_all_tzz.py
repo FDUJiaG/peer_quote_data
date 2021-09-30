@@ -166,7 +166,7 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
 
 
 if __name__ == '__main__':
-    f_name = "中环海陆"
+    f_name = "高铁电气"
     w.start()
     w.isconnected()
     tf_gz = op_ns_data(f_name)

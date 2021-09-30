@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from common_utils import col_temp, state_dict
+from common_utils import col_temp, state_dict, attention_dict
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from WindPy import w
@@ -163,6 +163,7 @@ def get_col_list(r_path, data_n, sheet_n, f_type=".xlsx"):
     file_list = os.listdir(r_path)
     data_list = [
         file for file in file_list if data_n in file and f_type.split(".")[-1] in file.split(".")[-1]
+        and "~$" not in file
     ]
 
     print(print_info(), end=" ")
@@ -217,6 +218,7 @@ def get_df_group(df, index_n, price):
     # print(df.groupby(index_n)[price, "备注"])
     # df_group = df.groupby(index_n)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
     # df_group.set_index(index_n, inplace=True)
+
     try:
         index_name = index_n
         df_group = df.groupby(index_name)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
@@ -301,24 +303,34 @@ def output_df(tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo
         output_item[col_temp[1]] = ""
         output_item[col_temp[3]] = ""
         item = item.rstrip(string.digits)
-        item_set = set("".join(item))
-        idx, p = 0, 0
-        for tzz_item in tzz_list:
-            tzz_item_set = set("".join(tzz_item))
-            if item_set.issubset(tzz_item_set):
-                idx += 1
+        # ## old judgement
+        # item_set = set("".join(item))
+        # idx, p = 0, 0
+        # for tzz_item in tzz_list:
+        #     tzz_item_set = set("".join(tzz_item))
+        #     if item_set.issubset(tzz_item_set):
+        #         idx += 1
+        #         p = df_group.loc[tzz_item][0]
+        #         output_item[col_temp[1]] = tzz_item
+        #         output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
+
+        # if idx > 1:
+        #     idx = 0
+        #     for tzz_item in tzz_list:
+        #         if item in tzz_item and "基金" in tzz_item:
+        #             idx += 1
+        #             p = df_group.loc[tzz_item][0]
+        #             output_item[col_temp[1]] = tzz_item
+        #             output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
+        # ##
+
+        p = 0
+        if item in attention_dict.keys():
+            tzz_item = attention_dict[item]
+            if tzz_item in tzz_list:
                 p = df_group.loc[tzz_item][0]
                 output_item[col_temp[1]] = tzz_item
                 output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
-
-        if idx > 1:
-            idx = 0
-            for tzz_item in tzz_list:
-                if item in tzz_item and "基金" in tzz_item:
-                    idx += 1
-                    p = df_group.loc[tzz_item][0]
-                    output_item[col_temp[1]] = tzz_item
-                    output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
 
         if p == 0:
             if item == "证券名称":
@@ -439,7 +451,7 @@ def set_font(df, excel_name, sheet_name):
 if __name__ == '__main__':
     w.start()
     w.isconnected()
-    TF = op_ns_data("晶雪节能.xlsx")
+    TF = op_ns_data("海锅股份_301063.xlsx")
     if TF:
         print(print_info("S"), end=" ")
         print("Success!")
