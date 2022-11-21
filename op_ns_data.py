@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from common_utils import col_temp, state_dict, attention_dict
 import openpyxl
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from WindPy import w
 import warnings
@@ -29,19 +30,23 @@ def op_ns_data(file_name):
 
     long_name = os.path.split(file_path)[-1].split(".")[0]
     ipo_name, ipo_code = get_name_and_code(long_name)
-    if ipo_code != "":
-        data = w.wsd(
-            ipo_code, "sec_name,ipo_inq_enddate",
-            "ED-1TD", datetime.now().strftime("%Y-%m-%d")
-        )
-        if ipo_name != data.Data[0][0]:
-            print(print_new_info("E", "R"), end=" ")
-            print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
-            return False
+    # if ipo_code != "":
+    #     data = w.wsd(
+    #         ipo_code, "sec_name,ipo_inq_enddate",
+    #         "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+    #     )
+    #     if ipo_name != data.Data[0][0].split("-")[0]:
+    #         if
+    #         print(print_new_info("E", "R"), end=" ")
+    #         print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
+    #         return False
 
     raw_df = get_ns_info_data(file_path)
     if type(raw_df) is bool:
         return raw_df
+
+    # 替换
+    raw_df.replace("招商基金管理有限公司", "招商基金", inplace=True)
 
     if not judge_df(raw_df):
         return False
@@ -50,15 +55,16 @@ def op_ns_data(file_name):
     for item in raw_df_key:
         if "价格" in item:
             sg_jg = item
-        elif "投资者" in item:
+        elif "投资者" in item or "交易员" in item:
             tzz_mc = item
 
-    df_group = get_df_group(raw_df, tzz_mc, sg_jg)
+    df_group = get_df_group_all(raw_df, tzz_mc, sg_jg)
+
     if type(df_group) is bool:
         return df_group
 
-    tzz_list = df_group.index.tolist()
-    df_note = output_df(tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_name, ipo_code)
+    tzz_list = list(set(df_group[tzz_mc].tolist()))
+    df_note = output_df(tzz_mc, sg_jg, raw_df, df_group, tzz_list, col_list, col_temp, ipo_name, ipo_code)
 
     try:
         save_df(df_note, root_path, file_path, sheet_name, op_file_type=".xlsx")
@@ -213,19 +219,18 @@ def judge_df(df):
         return True
 
 
-def get_df_group(df, index_n, price):
-    print(index_n, price)
-    # print(df.groupby(index_n)[price, "备注"])
-    # df_group = df.groupby(index_n)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
-    # df_group.set_index(index_n, inplace=True)
-
+def get_df_group_all(df, index_n, price):
+    # 全部报价信息，并非只显示报价众数
+    # 投资者名称，报价，备注，计数
     try:
         index_name = index_n
-        df_group = df.groupby(index_name)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
-        df_group.set_index(index_name, inplace=True)
+        df_group_all = df.groupby([index_name, price, "备注"])["序号"].count().reset_index()
+        df_group_all.rename(columns={"序号": "计数"}, inplace=True)
+        df_group_all.sort_values(by=[index_name, "计数"], ascending=[True, False], inplace=True)
         print(print_info(), end=" ")
-        print("The Group by DataFrame:\n {}".format(df_group))
-        return df_group
+        print("The Group by DataFrame:\n {}".format(df_group_all))
+        # df_group_all.to_excel("test.xlsx")
+        return df_group_all
     except:
         print(print_new_info("E", "R"), end=" ")
         print("There is something wrong in DataFrame:\n {}".format(df.head()))
@@ -293,87 +298,94 @@ def get_note(df, tzz_mc, short_title, tzz_n, s_dict):
     return note, desc_note
 
 
-def output_df(tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
+def easy_check(staus):
+    if "高" in staus:
+        return state_dict["高"]
+    elif "低" in staus:
+        return state_dict["低"]
+    elif "未" in staus or "无" in staus:
+        return state_dict["无"]
+    else:
+        return state_dict["有"]
+
+
+def output_df(tzz_mc, sg_jg, raw_df, df_group, tzz_list, col_list, col_temp, ipo_n, ipo_c):
+    # 1有效, 2低剔, 3高剔
     df_output = pd.DataFrame(columns=col_temp)
     desc_list = list()
 
-    for item in col_list:
-        output_item = dict()
-        output_item[col_temp[0]] = item
-        output_item[col_temp[1]] = ""
-        output_item[col_temp[3]] = ""
-        item = item.rstrip(string.digits)
-        # ## old judgement
-        # item_set = set("".join(item))
-        # idx, p = 0, 0
-        # for tzz_item in tzz_list:
-        #     tzz_item_set = set("".join(tzz_item))
-        #     if item_set.issubset(tzz_item_set):
-        #         idx += 1
-        #         p = df_group.loc[tzz_item][0]
-        #         output_item[col_temp[1]] = tzz_item
-        #         output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
+    op_list = col_list[:6] + list(attention_dict.keys())
+    op_list.append("备注")
 
-        # if idx > 1:
-        #     idx = 0
-        #     for tzz_item in tzz_list:
-        #         if item in tzz_item and "基金" in tzz_item:
-        #             idx += 1
-        #             p = df_group.loc[tzz_item][0]
-        #             output_item[col_temp[1]] = tzz_item
-        #             output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
-        # ##
+    df_note = pd.DataFrame(columns=col_list)
 
+    for item in op_list:
         p = 0
         if item in attention_dict.keys():
             tzz_item = attention_dict[item]
             if tzz_item in tzz_list:
-                p = df_group.loc[tzz_item][0]
-                output_item[col_temp[1]] = tzz_item
-                output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
+                p = df_group[df_group[tzz_mc] == tzz_item][sg_jg].tolist()
+                info = df_group[df_group[tzz_mc] == tzz_item]["备注"].tolist()
+                info = [easy_check(info_item) for info_item in info]
+                # print(tzz_item, info, p)
+                p_zip = zip(p, info)
 
+                right_p = list()
+                low_p = list()
+                high_p = list()
+                for p_item, i_item in p_zip:
+                    if i_item == "高价剔除":
+                        high_p.append(str(p_item))
+                    elif i_item == "低价剔除":
+                        low_p.append(str(p_item))
+                    elif i_item == "有效报价":
+                        right_p.append(str(p_item))
+                h_p = "\n".join(high_p)
+                l_p = "\n".join(low_p)
+                r_p = "\n".join(right_p)
+
+                if r_p != "":
+                    df_note[item + "1"] = [r_p, ""]
+                if l_p != "":
+                    df_note[item + "2"] = [l_p, "低价剔除"]
+                if h_p != "":
+                    df_note[item + "3"] = [h_p, "高价剔除"]
+
+                item_temp, desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
         if p == 0:
             if item == "证券名称":
-                # qs_name = os.path.split(f_path)[-1].split(".")[0]
-                # if len(qs_name) > 4:
-                #     qs_name = qs_name[:4]
-                # output_item[col_temp[2]] = qs_name
-                output_item[col_temp[2]] = ipo_n
+                df_note[op_list[0]] = [ipo_n, ipo_n]
             elif item == "证券代码":
-                output_item[col_temp[2]] = ipo_c
+                # output_item[col_temp[2]] = ipo_c
+                df_note.loc[0, op_list[1]] = ipo_c
             elif item == "询价日期":
                 if ipo_c != "":
                     data = w.wsd(
                         ipo_c, "sec_name,ipo_inq_enddate",
                         "ED-1TD", datetime.now().strftime("%Y-%m-%d")
                     )
-                    output_item[col_temp[2]] = data.Data[-1][0].strftime("%Y-%m-%d")
+                    xj_date = data.Data[-1][0].strftime("%Y-%m-%d")
+                    df_note.loc[0, op_list[2]] = xj_date
             elif item == "我司报价":
-                output_item[col_temp[1]] = "上海迎水投资管理有限公司"
-                for tzz_item in tzz_list:
-                    if "迎水" in tzz_item:
-                        output_item[col_temp[2]] = df_group.loc[tzz_item][0]
-                        # output_item[col_temp[3]] = df_group.loc[tzz_item][1]
-                        output_item[col_temp[3]], desc_item = get_note(raw_df, tzz_mc, item, tzz_item, state_dict)
-            else:
-                output_item[col_temp[2]] = ""
-            df_output = df_output.append(output_item, ignore_index=True)
+                fullname = "上海迎水投资管理有限公司"
+                try:
+                    p = df_group[df_group[tzz_mc] == fullname][sg_jg].tolist()[0]
+                except:
+                    p = ""
+                df_note.loc[0, "我司报价"] = p
+                item_temp, desc_item = get_note(raw_df, tzz_mc, item, fullname, state_dict)
+                df_note.loc[1, "我司报价"] = item_temp
         else:
             if desc_item != "":
                 desc_list.append(desc_item)
-            output_item[col_temp[2]] = p
-            df_output = df_output.append(output_item, ignore_index=True)
 
     desc_list_unique = list(set(desc_list))
     desc_list_unique.sort(key=desc_list.index)
     desc_note_unique = "；".join(desc_list_unique)
     print(print_info(), end=" ")
     print("Note: {}".format(desc_note_unique))
-    df_output.set_index(col_temp[0], inplace=True)
-    # 删除全称列
-    df_output.drop(columns=col_temp[1], inplace=True)
-    df_note = pd.DataFrame(df_output.values.T, index=df_output.columns, columns=df_output.index)
-    df_note[col_temp[-1]][col_temp[-2]] = desc_note_unique
+    df_note.loc[0, "备注"] = desc_note_unique
+    # df_note.to_excel("df_note.xlsx")
     return df_note
 
 
@@ -425,8 +437,18 @@ def set_font(df, excel_name, sheet_name):
         shape = df.shape
         label_list = df.iloc[-1].tolist()
 
+        # 备注那列宽一点
+        if sheet_name == "关注":
+            sheet.column_dimensions[get_column_letter(shape[1])].width = 108
+            wrap = True
+        else:
+            wrap = False
+
         for idx, label in zip(range(shape[1]), label_list):
             cell = sheet.cell(shape[0], idx + 1)
+            cell.alignment = Alignment(wrapText=wrap, vertical="center")
+            if idx >= 6 and idx % 3 == 0 and sheet_name == "关注":
+                cell.border = Border(left=Side(border_style='medium', color='000000'))
             if label == state_dict["低"]:
                 cell.font = Font(color="008000")
                 cell.fill = PatternFill(fill_type='solid', fgColor="00FA9A")
@@ -441,17 +463,17 @@ def set_font(df, excel_name, sheet_name):
         book.close()
         print(print_info(), end=" ")
         print("Font set!")
+        return True
     except:
         print(print_new_info("E", "R"), end=" ")
         print("Can not set the font")
         return False
-    return True
 
 
 if __name__ == '__main__':
     w.start()
     w.isconnected()
-    TF = op_ns_data("海锅股份_301063.xlsx")
+    TF = op_ns_data("奥尼电子_301189.xlsx")
     if TF:
         print(print_info("S"), end=" ")
         print("Success!")

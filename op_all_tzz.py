@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from common_utils import col_temp, state_dict
 from op_ns_data import print_info, print_new_info, find_file_path, get_col_list, get_ns_info_data, judge_df
-from op_ns_data import get_df_group, get_note, save_df, get_name_and_code
+from op_ns_data import get_note, save_df, get_name_and_code
 from op_ns_data import op_ns_data
 from WindPy import w
 import warnings
@@ -30,15 +30,15 @@ def op_all_tzz(file_name):
 
     long_name = os.path.split(file_path)[-1].split(".")[0]
     ipo_name, ipo_code = get_name_and_code(long_name)
-    if ipo_code != "":
-        data = w.wsd(
-            ipo_code, "sec_name,ipo_inq_enddate",
-            "ED-1TD", datetime.now().strftime("%Y-%m-%d")
-        )
-        if ipo_name != data.Data[0][0]:
-            print(print_new_info("E", "R"), end=" ")
-            print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
-            return False
+    # if ipo_code != "":
+    #     data = w.wsd(
+    #         ipo_code, "sec_name,ipo_inq_enddate",
+    #         "ED-1TD", datetime.now().strftime("%Y-%m-%d")
+    #     )
+    #     if ipo_name != data.Data[0][0]:
+    #         print(print_new_info("E", "R"), end=" ")
+    #         print("Name: {} and Code: {} not match!".format(ipo_name, ipo_code))
+    #         return False
 
     raw_df = get_ns_info_data(file_path)
     if type(raw_df) is bool:
@@ -54,7 +54,7 @@ def op_all_tzz(file_name):
     for item in raw_df_key:
         if "价格" in item:
             sg_jg = item
-        elif "投资者" in item:
+        elif "投资者" in item or "交易员" in item:
             tzz_mc = item
 
     for idx, item in zip(range(len(raw_df[tzz_mc])), raw_df[tzz_mc]):
@@ -63,7 +63,7 @@ def op_all_tzz(file_name):
     raw_df_col = raw_df[tzz_mc].tolist()
     union_col = get_all_col(col_list, raw_df_col)
 
-    df_group = get_df_group(raw_df, tzz_mc, sg_jg)
+    df_group = get_df_group_one(raw_df, tzz_mc, sg_jg)
     if type(df_group) is bool:
         return df_group
 
@@ -165,8 +165,24 @@ def output_all_df(f_path, tzz_mc, raw_df, df_group, tzz_list, col_list, col_temp
     return df_note
 
 
+def get_df_group_one(df, index_n, price):
+    # 仅显示报价的众数
+    try:
+        index_name = index_n
+        df_group = df.groupby(index_name)[price, "备注"].agg(lambda x: x.value_counts().index[0]).reset_index()
+        df_group.set_index(index_name, inplace=True)
+        print(print_info(), end=" ")
+        print("The Group by DataFrame:\n {}".format(df_group))
+        df_group.to_excel("test.xlsx")
+        return df_group
+    except:
+        print(print_new_info("E", "R"), end=" ")
+        print("There is something wrong in DataFrame:\n {}".format(df.head()))
+        return False
+
+
 if __name__ == '__main__':
-    f_name = "高铁电气"
+    f_name = "卡莱特"
     w.start()
     w.isconnected()
     tf_gz = op_ns_data(f_name)
